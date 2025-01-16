@@ -7,4 +7,5 @@ edition = "2021"
 anyhow = "1.0.95"
 arc = "0.0.1"
 rand = "0.8.5"
-reqwest = "0.12.12"
+reqwest = { version = "0.12.12", features = ["blocking", "json", "native-tls"], default-features = false }
+native-tls = "0.2.9"
